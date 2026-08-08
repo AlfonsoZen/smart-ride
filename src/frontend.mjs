@@ -6,17 +6,32 @@ export const FRONTEND_HTML = `<!DOCTYPE html>
   <title>RutaSegura CDMX</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { background: #0f0f0f; color: #f0f0f0; font-family: 'Inter', sans-serif; padding: 32px; max-width: 680px; margin: auto; }
-    h1 { color: #6C63FF; margin-bottom: 8px; }
-    p.sub { color: #888; margin-bottom: 24px; font-size: 13px; }
 
+    body {
+      background: #0f0f0f; color: #f0f0f0;
+      font-family: 'Inter', -apple-system, sans-serif;
+      display: flex; height: 100vh; overflow: hidden;
+    }
+
+    /* ── Sidebar ── */
+    #sidebar {
+      width: 380px; min-width: 380px; height: 100vh;
+      background: #141414; display: flex; flex-direction: column;
+      overflow-y: auto; z-index: 10;
+      border-right: 1px solid #1f1f1f;
+    }
+    #sidebar-inner { padding: 24px; flex: 1; }
+
+    h1 { font-size: 20px; font-weight: 700; color: #f0f0f0; margin-bottom: 2px; }
+    .sub { color: #555; font-size: 12px; margin-bottom: 20px; }
+
+    /* ── Inputs de ubicación ── */
     .location-panel {
-      background: #1a1a1a; border: 1px solid #2a2a2a; border-radius: 12px; overflow: hidden;
+      background: #1a1a1a; border: 1px solid #2a2a2a;
+      border-radius: 12px; overflow: hidden;
     }
-    .location-row {
-      display: flex; align-items: center; gap: 12px; padding: 14px 16px;
-    }
-    .location-row + .location-row { border-top: 1px solid #2a2a2a; }
+    .location-row { display: flex; align-items: center; gap: 12px; padding: 13px 16px; }
+    .location-row + .location-row { border-top: 1px solid #222; }
     .dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
     .dot.origin      { background: #6C63FF; }
     .dot.destination { background: #ff6b6b; }
@@ -24,99 +39,134 @@ export const FRONTEND_HTML = `<!DOCTYPE html>
       flex: 1; background: transparent; border: none; outline: none;
       color: #f0f0f0; font-size: 14px; min-width: 0;
     }
-    .location-row input::placeholder { color: #555; }
+    .location-row input::placeholder { color: #444; }
 
-    .divider { height: 1px; background: #2a2a2a; margin: 20px 0; }
+    .divider { height: 1px; background: #1f1f1f; margin: 18px 0; }
 
-    .weights-panel h3 { font-size: 13px; color: #888; font-weight: 500; margin-bottom: 14px; }
-    .weight-row { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
-    .weight-label { font-size: 13px; width: 160px; flex-shrink: 0; }
-    input[type=range] { flex: 1; accent-color: #6C63FF; }
-    .weight-val { font-size: 13px; color: #6C63FF; font-weight: 700; width: 18px; text-align: right; }
+    /* ── Sliders ── */
+    .weights-panel h3 {
+      font-size: 10px; letter-spacing: .08em; color: #555;
+      font-weight: 600; margin-bottom: 14px; text-transform: uppercase;
+    }
+    .weight-row { display: flex; align-items: center; gap: 10px; margin-bottom: 11px; }
+    .weight-label { font-size: 12px; width: 150px; flex-shrink: 0; color: #bbb; }
+    input[type=range] { flex: 1; accent-color: #6C63FF; cursor: pointer; }
+    .weight-val { font-size: 13px; color: #6C63FF; font-weight: 700; width: 16px; text-align: right; }
 
-    button {
-      margin-top: 20px; width: 100%; padding: 14px;
+    /* ── Botón ── */
+    #go-btn {
+      margin-top: 20px; width: 100%; padding: 13px;
       background: #6C63FF; color: white; border: none; border-radius: 10px;
-      font-size: 15px; font-weight: 600; cursor: pointer; transition: background .15s;
+      font-size: 14px; font-weight: 600; cursor: pointer; transition: background .15s;
     }
-    button:hover:not(:disabled) { background: #5a52d5; }
-    button:disabled { opacity: 0.45; cursor: not-allowed; }
+    #go-btn:hover:not(:disabled) { background: #5a52d5; }
+    #go-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 
-    #tools { margin-top: 14px; min-height: 20px; }
-    .tool-badge {
-      display: inline-block; background: #1e1a3a; color: #a89dff;
-      border-radius: 4px; padding: 2px 8px; font-size: 11px; margin: 2px;
+    /* ── Estado de carga ── */
+    #status-bar {
+      margin-top: 14px; min-height: 22px;
+      display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
     }
+    .spinner {
+      width: 14px; height: 14px; border: 2px solid #333;
+      border-top-color: #6C63FF; border-radius: 50%;
+      animation: spin .7s linear infinite; flex-shrink: 0;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    #active-tool { font-size: 12px; color: #a89dff; }
+
+    #tools { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 8px; }
+    .tool-badge {
+      background: #1e1a3a; color: #a89dff;
+      border-radius: 4px; padding: 2px 8px; font-size: 11px;
+    }
+    .tool-badge.done { color: #6ddb8b; background: #0f2a1a; }
+
+    /* ── Output de texto ── */
     #output {
       margin-top: 12px; background: #1a1a1a; border-radius: 10px;
-      padding: 16px; font-size: 13px; line-height: 1.7; white-space: pre-wrap;
-      min-height: 60px; border: 1px solid #2a2a2a; color: #ddd;
+      padding: 14px; font-size: 12px; line-height: 1.75; white-space: pre-wrap;
+      min-height: 60px; border: 1px solid #222; color: #ccc;
+      max-height: 300px; overflow-y: auto;
     }
-    #map {
-      margin-top: 16px; border-radius: 12px; overflow: hidden;
-      height: 340px; border: 1px solid #2a2a2a; display: none;
-    }
+
+    /* ── Mapa ── */
+    #map { flex: 1; height: 100vh; }
   </style>
 </head>
 <body>
-  <h1>RutaSegura CDMX</h1>
-  <p class="sub">Encuentra la mejor ruta según lo que más te importa.</p>
+  <div id="sidebar">
+    <div id="sidebar-inner">
+      <h1>RutaSegura CDMX</h1>
+      <p class="sub">Encuentra la mejor ruta según lo que más te importa.</p>
 
-  <div class="location-panel">
-    <div class="location-row">
-      <span class="dot origin"></span>
-      <input type="text" id="origin" placeholder="¿Desde dónde sales?" value="Ángel de la Independencia, CDMX" />
-    </div>
-    <div class="location-row">
-      <span class="dot destination"></span>
-      <input type="text" id="destination" placeholder="¿A dónde vas?" value="Xochimilco, CDMX" />
+      <div class="location-panel">
+        <div class="location-row">
+          <span class="dot origin"></span>
+          <input type="text" id="origin" placeholder="¿Desde dónde sales?" value="Ángel de la Independencia, CDMX" />
+        </div>
+        <div class="location-row">
+          <span class="dot destination"></span>
+          <input type="text" id="destination" placeholder="¿A dónde vas?" value="Xochimilco, CDMX" />
+        </div>
+      </div>
+
+      <div class="divider"></div>
+
+      <div class="weights-panel">
+        <h3>¿Qué importa más en tu viaje?</h3>
+
+        <div class="weight-row">
+          <span class="weight-label">⚡ Rapidez</span>
+          <input type="range" id="w-speed" min="0" max="10" value="5"
+                 oninput="document.getElementById('lv-speed').textContent=this.value" />
+          <span class="weight-val" id="lv-speed">5</span>
+        </div>
+        <div class="weight-row">
+          <span class="weight-label">🔒 Seguridad</span>
+          <input type="range" id="w-safety" min="0" max="10" value="5"
+                 oninput="document.getElementById('lv-safety').textContent=this.value" />
+          <span class="weight-val" id="lv-safety">5</span>
+        </div>
+        <div class="weight-row">
+          <span class="weight-label">🌧 Clima</span>
+          <input type="range" id="w-weather" min="0" max="10" value="5"
+                 oninput="document.getElementById('lv-weather').textContent=this.value" />
+          <span class="weight-val" id="lv-weather">5</span>
+        </div>
+        <div class="weight-row">
+          <span class="weight-label">💰 Costo</span>
+          <input type="range" id="w-cost" min="0" max="10" value="5"
+                 oninput="document.getElementById('lv-cost').textContent=this.value" />
+          <span class="weight-val" id="lv-cost">5</span>
+        </div>
+        <div class="weight-row">
+          <span class="weight-label">♿ Accesibilidad</span>
+          <input type="range" id="w-access" min="0" max="10" value="5"
+                 oninput="document.getElementById('lv-access').textContent=this.value" />
+          <span class="weight-val" id="lv-access">5</span>
+        </div>
+      </div>
+
+      <button id="go-btn" onclick="buscarRuta()">Buscar ruta</button>
+
+      <div id="status-bar"></div>
+      <div id="tools"></div>
+      <div id="output">La recomendación del agente aparecerá aquí.</div>
     </div>
   </div>
 
-  <div class="divider"></div>
-
-  <div class="weights-panel">
-    <h3>¿QUÉ IMPORTA MÁS EN TU VIAJE?</h3>
-
-    <div class="weight-row">
-      <span class="weight-label">⚡ Rapidez</span>
-      <input type="range" id="w-speed" min="0" max="10" value="5"
-             oninput="document.getElementById('lv-speed').textContent=this.value" />
-      <span class="weight-val" id="lv-speed">5</span>
-    </div>
-    <div class="weight-row">
-      <span class="weight-label">🔒 Seguridad</span>
-      <input type="range" id="w-safety" min="0" max="10" value="5"
-             oninput="document.getElementById('lv-safety').textContent=this.value" />
-      <span class="weight-val" id="lv-safety">5</span>
-    </div>
-    <div class="weight-row">
-      <span class="weight-label">🌧 Clima</span>
-      <input type="range" id="w-weather" min="0" max="10" value="5"
-             oninput="document.getElementById('lv-weather').textContent=this.value" />
-      <span class="weight-val" id="lv-weather">5</span>
-    </div>
-    <div class="weight-row">
-      <span class="weight-label">💰 Costo</span>
-      <input type="range" id="w-cost" min="0" max="10" value="5"
-             oninput="document.getElementById('lv-cost').textContent=this.value" />
-      <span class="weight-val" id="lv-cost">5</span>
-    </div>
-    <div class="weight-row">
-      <span class="weight-label">♿ Accesibilidad</span>
-      <input type="range" id="w-access" min="0" max="10" value="5"
-             oninput="document.getElementById('lv-access').textContent=this.value" />
-      <span class="weight-val" id="lv-access">5</span>
-    </div>
-  </div>
-
-  <button id="go-btn" onclick="buscarRuta()">Buscar ruta</button>
-
-  <div id="tools"></div>
-  <div id="output">La recomendación del agente aparecerá aquí.</div>
   <div id="map"></div>
 
   <script>
+    const TOOL_LABELS = {
+      get_routes:          "🗺 Buscando rutas",
+      get_weather:         "🌧 Consultando clima",
+      get_safety_index:    "🔒 Evaluando seguridad",
+      get_transport_cost:  "💰 Calculando costo",
+      get_accessibility:   "♿ Verificando accesibilidad",
+    };
+
     let map, directionsRenderer, mapsReady = false;
 
     function initMap() {
@@ -124,60 +174,78 @@ export const FRONTEND_HTML = `<!DOCTYPE html>
         center: { lat: 19.4326, lng: -99.1332 },
         zoom: 12,
         disableDefaultUI: true,
+        zoomControl: true,
         styles: [
-          { elementType: "geometry", stylers: [{ color: "#1a1a2e" }] },
-          { elementType: "labels.text.fill", stylers: [{ color: "#a0a0c0" }] },
-          { featureType: "road", elementType: "geometry", stylers: [{ color: "#2a2a4a" }] },
-          { featureType: "water", elementType: "geometry", stylers: [{ color: "#0d0d1a" }] },
+          { elementType: "geometry",            stylers: [{ color: "#1a1a2e" }] },
+          { elementType: "labels.text.fill",    stylers: [{ color: "#8888aa" }] },
+          { elementType: "labels.text.stroke",  stylers: [{ color: "#1a1a2e" }] },
+          { featureType: "road",         elementType: "geometry",      stylers: [{ color: "#2a2a4a" }] },
+          { featureType: "road.highway", elementType: "geometry",      stylers: [{ color: "#3a3a6a" }] },
+          { featureType: "road",         elementType: "labels.text.fill", stylers: [{ color: "#6666aa" }] },
+          { featureType: "water",        elementType: "geometry",      stylers: [{ color: "#0d0d1a" }] },
+          { featureType: "poi",          elementType: "geometry",      stylers: [{ color: "#1e1e3a" }] },
+          { featureType: "transit",      elementType: "geometry",      stylers: [{ color: "#222244" }] },
+          { featureType: "landscape",    elementType: "geometry",      stylers: [{ color: "#16162a" }] },
+          { featureType: "administrative", elementType: "geometry.stroke", stylers: [{ color: "#2a2a5a" }] },
         ],
       });
       directionsRenderer = new google.maps.DirectionsRenderer({
         map,
-        polylineOptions: { strokeColor: "#6C63FF", strokeWeight: 5 },
+        suppressMarkers: false,
+        polylineOptions: { strokeColor: "#6C63FF", strokeWeight: 5, strokeOpacity: 0.9 },
       });
       mapsReady = true;
     }
 
     function drawRoute(routeData) {
       if (!mapsReady) return;
-      const mapEl = document.getElementById("map");
-      mapEl.style.display = "block";
       const svc = new google.maps.DirectionsService();
       svc.route(
         {
-          origin: routeData.origin,
+          origin:      routeData.origin,
           destination: routeData.destination,
-          travelMode: google.maps.TravelMode.DRIVING,
+          travelMode:  google.maps.TravelMode.DRIVING,
         },
         (result, status) => {
           if (status === "OK") directionsRenderer.setDirections(result);
         }
       );
     }
+
+    function setActiveTool(name) {
+      const bar = document.getElementById("status-bar");
+      if (!name) { bar.innerHTML = ""; return; }
+      bar.innerHTML =
+        '<div class="spinner"></div>' +
+        '<span id="active-tool">' + (TOOL_LABELS[name] ?? name) + '...</span>';
+    }
+
+    function addDoneBadge(name) {
+      document.getElementById("tools").innerHTML +=
+        '<span class="tool-badge done">' + (TOOL_LABELS[name] ?? name) + ' ✓</span>';
+    }
   </script>
   <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyAQqa_a-T2DG0BOHkePnpGBWPlkNIp97mY&libraries=places&callback=initMap" async defer></script>
   <script>
     const sessionId = "s-" + Math.random().toString(36).slice(2, 9);
+    let lastTool = null;
 
     async function buscarRuta() {
       const origin      = document.getElementById("origin").value.trim();
       const destination = document.getElementById("destination").value.trim();
-      if (!origin || !destination) {
-        alert("Ingresa origen y destino.");
-        return;
-      }
+      if (!origin || !destination) { alert("Ingresa origen y destino."); return; }
 
-      const btn   = document.getElementById("go-btn");
-      const out   = document.getElementById("output");
-      const tools = document.getElementById("tools");
-      btn.disabled   = true;
-      out.textContent = "⏳ Geocodificando y consultando al agente...";
-      tools.innerHTML = "";
+      const btn  = document.getElementById("go-btn");
+      const out  = document.getElementById("output");
+      btn.disabled = true;
+      out.textContent = "";
+      document.getElementById("tools").innerHTML = "";
+      document.getElementById("status-bar").innerHTML =
+        '<div class="spinner"></div><span id="active-tool">Geocodificando dirección...</span>';
+      lastTool = null;
 
       const payload = {
-        sessionId,
-        origin,
-        destination,
+        sessionId, origin, destination,
         weights: {
           speed:         parseInt(document.getElementById("w-speed").value),
           safety:        parseInt(document.getElementById("w-safety").value),
@@ -206,29 +274,31 @@ export const FRONTEND_HTML = `<!DOCTYPE html>
             try {
               const evt = JSON.parse(line);
               if (evt.type === "token") {
+                // Marcar herramienta anterior como completada cuando llega el primer token
+                if (lastTool) { addDoneBadge(lastTool); lastTool = null; setActiveTool(null); }
                 text += evt.text;
                 out.textContent = text.replace(/\\nROUTE_DATA:.*$/s, "").trim();
               } else if (evt.type === "tool") {
-                const labels = {
-                  get_routes: "🗺 Buscando rutas",
-                  get_weather: "🌧 Consultando clima",
-                  get_safety_index: "🔒 Evaluando seguridad",
-                  get_transport_cost: "💰 Calculando costo",
-                  get_accessibility: "♿ Verificando accesibilidad",
-                };
-                tools.innerHTML += '<span class="tool-badge">' + (labels[evt.name] ?? evt.name) + '</span>';
+                if (lastTool) addDoneBadge(lastTool);
+                lastTool = evt.name;
+                setActiveTool(evt.name);
               } else if (evt.type === "route") {
                 drawRoute(evt.route);
+              } else if (evt.type === "done") {
+                setActiveTool(null);
               } else if (evt.type === "error") {
+                setActiveTool(null);
                 out.textContent = "❌ " + evt.text;
               }
             } catch (_) {}
           }
         }
       } catch (err) {
+        document.getElementById("status-bar").innerHTML = "";
         out.textContent = "❌ Error de red: " + err.message;
       } finally {
         btn.disabled = false;
+        setActiveTool(null);
       }
     }
   </script>
