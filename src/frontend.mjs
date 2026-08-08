@@ -52,6 +52,10 @@ export const FRONTEND_HTML = `<!DOCTYPE html>
       padding: 16px; font-size: 13px; line-height: 1.7; white-space: pre-wrap;
       min-height: 60px; border: 1px solid #2a2a2a; color: #ddd;
     }
+    #map {
+      margin-top: 16px; border-radius: 12px; overflow: hidden;
+      height: 340px; border: 1px solid #2a2a2a; display: none;
+    }
   </style>
 </head>
 <body>
@@ -110,7 +114,48 @@ export const FRONTEND_HTML = `<!DOCTYPE html>
 
   <div id="tools"></div>
   <div id="output">La recomendación del agente aparecerá aquí.</div>
+  <div id="map"></div>
 
+  <script>
+    let map, directionsRenderer, mapsReady = false;
+
+    function initMap() {
+      map = new google.maps.Map(document.getElementById("map"), {
+        center: { lat: 19.4326, lng: -99.1332 },
+        zoom: 12,
+        disableDefaultUI: true,
+        styles: [
+          { elementType: "geometry", stylers: [{ color: "#1a1a2e" }] },
+          { elementType: "labels.text.fill", stylers: [{ color: "#a0a0c0" }] },
+          { featureType: "road", elementType: "geometry", stylers: [{ color: "#2a2a4a" }] },
+          { featureType: "water", elementType: "geometry", stylers: [{ color: "#0d0d1a" }] },
+        ],
+      });
+      directionsRenderer = new google.maps.DirectionsRenderer({
+        map,
+        polylineOptions: { strokeColor: "#6C63FF", strokeWeight: 5 },
+      });
+      mapsReady = true;
+    }
+
+    function drawRoute(routeData) {
+      if (!mapsReady) return;
+      const mapEl = document.getElementById("map");
+      mapEl.style.display = "block";
+      const svc = new google.maps.DirectionsService();
+      svc.route(
+        {
+          origin: routeData.origin,
+          destination: routeData.destination,
+          travelMode: google.maps.TravelMode.DRIVING,
+        },
+        (result, status) => {
+          if (status === "OK") directionsRenderer.setDirections(result);
+        }
+      );
+    }
+  </script>
+  <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyAQqa_a-T2DG0BOHkePnpGBWPlkNIp97mY&libraries=places&callback=initMap" async defer></script>
   <script>
     const sessionId = "s-" + Math.random().toString(36).slice(2, 9);
 
@@ -173,7 +218,7 @@ export const FRONTEND_HTML = `<!DOCTYPE html>
                 };
                 tools.innerHTML += '<span class="tool-badge">' + (labels[evt.name] ?? evt.name) + '</span>';
               } else if (evt.type === "route") {
-                console.log("Ruta para el mapa:", evt.route);
+                drawRoute(evt.route);
               } else if (evt.type === "error") {
                 out.textContent = "❌ " + evt.text;
               }
