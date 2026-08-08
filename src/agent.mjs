@@ -40,7 +40,7 @@ function buildSystemPrompt(weights) {
     })
     .join(" > ");
 
-  return `Eres RutaSegura, experto en movilidad urbana de la CDMX.
+  return `Eres SmartDrive, experto en movilidad urbana de la CDMX.
 Recibirás datos ya recopilados (rutas, clima, seguridad, costos). Tu única tarea es
 ANALIZAR esos datos y recomendar la mejor ruta según las prioridades del usuario.
 

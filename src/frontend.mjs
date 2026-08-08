@@ -3,7 +3,7 @@ export const FRONTEND_HTML = `<!DOCTYPE html>
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>RutaSegura CDMX</title>
+  <title>SmartDrive</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -97,7 +97,7 @@ export const FRONTEND_HTML = `<!DOCTYPE html>
 <body>
   <div id="sidebar">
     <div id="sidebar-inner">
-      <h1>RutaSegura CDMX</h1>
+      <h1>SmartDrive</h1>
       <p class="sub">Encuentra la mejor ruta según lo que más te importa.</p>
 
       <div class="location-panel">
