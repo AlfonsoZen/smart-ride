@@ -167,7 +167,7 @@ export const FRONTEND_HTML = `<!DOCTYPE html>
       get_accessibility:   "♿ Verificando accesibilidad",
     };
 
-    let map, directionsRenderer, mapsReady = false;
+    let map, mapsReady = false, routeLine = null, markerOrigin = null, markerDest = null;
 
     function initMap() {
       map = new google.maps.Map(document.getElementById("map"), {
@@ -189,27 +189,34 @@ export const FRONTEND_HTML = `<!DOCTYPE html>
           { featureType: "administrative", elementType: "geometry.stroke", stylers: [{ color: "#2a2a5a" }] },
         ],
       });
-      directionsRenderer = new google.maps.DirectionsRenderer({
-        map,
-        suppressMarkers: false,
-        polylineOptions: { strokeColor: "#6C63FF", strokeWeight: 5, strokeOpacity: 0.9 },
-      });
       mapsReady = true;
     }
 
     function drawRoute(routeData) {
-      if (!mapsReady) return;
-      const svc = new google.maps.DirectionsService();
-      svc.route(
-        {
-          origin:      routeData.origin,
-          destination: routeData.destination,
-          travelMode:  google.maps.TravelMode.DRIVING,
-        },
-        (result, status) => {
-          if (status === "OK") directionsRenderer.setDirections(result);
-        }
-      );
+      if (!mapsReady || !routeData.polyline) return;
+
+      // Decodificar polyline directamente — no llama a Directions API
+      const path = google.maps.geometry.encoding.decodePath(routeData.polyline);
+
+      if (routeLine) routeLine.setMap(null);
+      routeLine = new google.maps.Polyline({
+        path,
+        map,
+        strokeColor:   "#6C63FF",
+        strokeWeight:  5,
+        strokeOpacity: 0.9,
+      });
+
+      // Marcadores de origen y destino
+      if (markerOrigin) markerOrigin.setMap(null);
+      if (markerDest)   markerDest.setMap(null);
+      markerOrigin = new google.maps.Marker({ position: path[0],              map, title: routeData.origin });
+      markerDest   = new google.maps.Marker({ position: path[path.length - 1], map, title: routeData.destination });
+
+      // Centrar mapa en la ruta
+      const bounds = new google.maps.LatLngBounds();
+      path.forEach(p => bounds.extend(p));
+      map.fitBounds(bounds, { top: 40, right: 40, bottom: 40, left: 40 });
     }
 
     function setActiveTool(name) {
@@ -225,7 +232,7 @@ export const FRONTEND_HTML = `<!DOCTYPE html>
         '<span class="tool-badge done">' + (TOOL_LABELS[name] ?? name) + ' ✓</span>';
     }
   </script>
-  <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyAQqa_a-T2DG0BOHkePnpGBWPlkNIp97mY&libraries=places&callback=initMap" async defer></script>
+  <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyAQqa_a-T2DG0BOHkePnpGBWPlkNIp97mY&libraries=places,geometry&callback=initMap" async defer></script>
   <script>
     const sessionId = "s-" + Math.random().toString(36).slice(2, 9);
     // Construir URL del chat respetando el stage de API Gateway (/prod/chat)

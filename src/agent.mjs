@@ -54,8 +54,8 @@ FORMATO DE RESPUESTA (en español, máximo 200 palabras):
 - Opciones de transporte con su costo
 - Una línea de contexto CDMX si es relevante
 
-AL FINAL, en la última línea, exactamente esto (sin markdown):
-ROUTE_DATA:{"index":<0|1|2>,"polyline":"<polyline>","origin":"<origen>","destination":"<destino>"}`;
+AL FINAL, en la última línea, exactamente esto (sin markdown, solo el número del índice):
+ROUTE_DATA:{"index":<0|1|2>}`;
 }
 
 export async function* answerWith(payload, sessionId) {
@@ -121,11 +121,18 @@ export async function* answerWith(payload, sessionId) {
     }
   }
 
-  const routeMatch = fullText.match(/ROUTE_DATA:(\{.*\})/);
+  const routeMatch = fullText.match(/ROUTE_DATA:\{"index":(\d)\}/);
   if (routeMatch) {
-    try {
-      yield { type: "route", route: JSON.parse(routeMatch[1]) };
-    } catch (_) {}
+    const idx = Math.min(parseInt(routeMatch[1]), routesWithData.length - 1);
+    const chosen = routesWithData[idx];
+    yield {
+      type: "route",
+      route: {
+        polyline:    chosen.polyline,
+        origin:      origin.address,
+        destination: destination.address,
+      },
+    };
   }
 
   await saveHistory(sessionId, agent.messages);
