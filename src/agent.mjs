@@ -54,8 +54,29 @@ FORMATO DE RESPUESTA (en español, máximo 200 palabras):
 - Opciones de transporte con su costo
 - Una línea de contexto CDMX si es relevante
 
-AL FINAL, en la última línea, exactamente esto (sin markdown):
-ROUTE_DATA:{"index":<0|1|2>,"polyline":"<polyline>","origin":"<origen>","destination":"<destino>"}`;
+Responde SOLO con el texto de análisis. No incluyas ningún JSON ni metadatos al final.`;
+}
+
+function pickBestRoute(routes, weights) {
+  if (!routes.length) return 0;
+  const maxDur = Math.max(...routes.map(r => r.duration_min), 1);
+  const maxDist = Math.max(...routes.map(r => parseFloat(r.distance_km)), 1);
+
+  let bestIdx = 0, bestScore = -Infinity;
+  for (const r of routes) {
+    const speedScore  = 10 - (r.duration_min / maxDur * 10);
+    const safetyScore = r.safety?.safety_score ?? 5;
+    const costScore   = 10 - (parseFloat(r.distance_km) / maxDist * 10);
+    const accScore    = r.accessibility?.accessibility_score ?? 5;
+    const w = weights;
+    const total =
+      speedScore  * (w.speed  ?? 5) +
+      safetyScore * (w.safety ?? 5) +
+      costScore   * (w.cost   ?? 5) +
+      accScore    * (w.accessibility ?? 5);
+    if (total > bestScore) { bestScore = total; bestIdx = r.index; }
+  }
+  return bestIdx;
 }
 
 export async function* answerWith(payload, sessionId) {
@@ -87,7 +108,21 @@ export async function* answerWith(payload, sessionId) {
     yield { type: "tool", name: "get_accessibility" };
     const bestRoute = routesWithData[0];
     accessibilityData = evalAccessibility(bestRoute.main_roads.join(", "));
+    routesWithData[0] = { ...routesWithData[0], accessibility: accessibilityData };
   }
+
+  // Emitir ruta inmediatamente — antes del LLM, el mapa puede dibujar ya
+  const bestIdx = pickBestRoute(routesWithData, mergedWeights);
+  const best = routesWithData[bestIdx];
+  yield {
+    type: "route",
+    route: {
+      index:       bestIdx,
+      polyline:    best.polyline,
+      origin:      origin.address,
+      destination: destination.address,
+    },
+  };
 
   // Construir mensaje con todos los datos para que el LLM solo sintetice
   const dataMessage =
@@ -107,26 +142,16 @@ export async function* answerWith(payload, sessionId) {
     printer: false,
   });
 
-  let fullText = "";
-
   for await (const ev of agent.stream(dataMessage)) {
     if (
       ev.type === "modelStreamUpdateEvent" &&
       ev.event.type === "modelContentBlockDeltaEvent" &&
       ev.event.delta?.type === "textDelta"
     ) {
-      const text = ev.event.delta.text;
-      fullText += text;
-      yield { type: "token", text };
+      yield { type: "token", text: ev.event.delta.text };
     }
   }
 
-  const routeMatch = fullText.match(/ROUTE_DATA:(\{.*\})/);
-  if (routeMatch) {
-    try {
-      yield { type: "route", route: JSON.parse(routeMatch[1]) };
-    } catch (_) {}
-  }
-
-  await saveHistory(sessionId, agent.messages);
+  // Fire-and-forget: no bloquear el stream esperando DynamoDB
+  saveHistory(sessionId, agent.messages).catch(() => {});
 }
