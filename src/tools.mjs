@@ -374,48 +374,33 @@ export const getTransportCost = tool({
 
 // ── 5. Accesibilidad — Infraestructura CDMX ─────────────────────────────────
 
-export const getAccessibility = tool({
-  name: "get_accessibility",
-  description:
-    "Evalúa qué tan accesible es la ruta para personas con movilidad reducida, " +
-    "usuarios de silla de ruedas o personas mayores. Indica estaciones con elevador, " +
-    "rampas y estado de banquetas en el recorrido.",
-  inputSchema: z.object({
-    route_summary: z.string().describe("Descripción textual de la ruta"),
-    duration_min:  z.number().describe("Duración de la ruta en minutos"),
-  }),
-  callback: async ({ route_summary }) => {
-    const ACCESSIBLE_STATIONS = [
-      "auditorio", "polanco", "tacubaya", "balderas", "hidalgo",
-      "indios verdes", "tasqueña", "universidad", "copilco",
-      "viveros", "perisur", "insurgentes", "bellas artes",
-    ];
-    const ACCESSIBLE_CORRIDORS = [
-      "reforma", "polanco", "santa fe", "pedregal",
-      "coyoacán", "tlalpan", "insurgentes", "periférico",
-    ];
+const ACCESSIBLE_STATIONS = [
+  "auditorio", "polanco", "tacubaya", "balderas", "hidalgo",
+  "indios verdes", "tasqueña", "universidad", "copilco",
+  "viveros", "perisur", "insurgentes", "bellas artes",
+];
+const ACCESSIBLE_CORRIDORS = [
+  "reforma", "polanco", "santa fe", "pedregal",
+  "coyoacán", "tlalpan", "insurgentes", "periférico",
+];
 
-    const text          = route_summary.toLowerCase();
-    const stationsFound = ACCESSIBLE_STATIONS.filter(s => text.includes(s));
-    const corridorsFound = ACCESSIBLE_CORRIDORS.filter(c => text.includes(c));
-
-    const score =
-      stationsFound.length >= 2  ? 9 :
-      stationsFound.length === 1 || corridorsFound.length >= 2 ? 7 :
-      corridorsFound.length === 1 ? 5 : 3;
-
-    return JSON.stringify({
-      accessibility_score: score,
-      accessible_stations_on_route: stationsFound,
-      accessible_corridors: corridorsFound,
-      ramp_coverage: score >= 7 ? "buena" : score >= 5 ? "parcial" : "limitada",
-      sidewalk_condition: score >= 7 ? "buena" : "irregular",
-      recommended_transport:
-        score >= 7 ? "Metro (con elevador) o app con asistencia" : "Taxi de sitio o app",
-      notes:
-        score < 5
-          ? "Infraestructura limitada. Se recomienda taxi o app para mayor comodidad."
-          : "Accesibilidad aceptable. Verificar estación de destino.",
-    });
-  },
-});
+export function evalAccessibility(route_summary) {
+  const text           = route_summary.toLowerCase();
+  const stationsFound  = ACCESSIBLE_STATIONS.filter(s => text.includes(s));
+  const corridorsFound = ACCESSIBLE_CORRIDORS.filter(c => text.includes(c));
+  const score =
+    stationsFound.length >= 2  ? 9 :
+    stationsFound.length === 1 || corridorsFound.length >= 2 ? 7 :
+    corridorsFound.length === 1 ? 5 : 3;
+  return {
+    accessibility_score: score,
+    accessible_stations_on_route: stationsFound,
+    accessible_corridors: corridorsFound,
+    ramp_coverage: score >= 7 ? "buena" : score >= 5 ? "parcial" : "limitada",
+    sidewalk_condition: score >= 7 ? "buena" : "irregular",
+    recommended_transport: score >= 7 ? "Metro (con elevador) o app con asistencia" : "Taxi de sitio o app",
+    notes: score < 5
+      ? "Infraestructura limitada. Se recomienda taxi o app."
+      : "Accesibilidad aceptable. Verificar estación de destino.",
+  };
+}

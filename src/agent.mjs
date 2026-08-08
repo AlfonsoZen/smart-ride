@@ -1,7 +1,7 @@
 import { Agent, BedrockModel } from "@strands-agents/sdk";
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
 import { DynamoDBDocumentClient, GetCommand, PutCommand } from "@aws-sdk/lib-dynamodb";
-import { fetchRoutes, fetchWeather, evalSafety, calcCost, getAccessibility } from "./tools.mjs";
+import { fetchRoutes, fetchWeather, evalSafety, calcCost, evalAccessibility } from "./tools.mjs";
 
 const ddb = DynamoDBDocumentClient.from(new DynamoDBClient({}));
 
@@ -86,11 +86,7 @@ export async function* answerWith(payload, sessionId) {
   if (needsAccessibility) {
     yield { type: "tool", name: "get_accessibility" };
     const bestRoute = routesWithData[0];
-    const result = await getAccessibility.callback({
-      route_summary: bestRoute.main_roads.join(", "),
-      duration_min: bestRoute.duration_min,
-    });
-    accessibilityData = JSON.parse(result);
+    accessibilityData = evalAccessibility(bestRoute.main_roads.join(", "));
   }
 
   // Construir mensaje con todos los datos para que el LLM solo sintetice
