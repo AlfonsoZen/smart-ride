@@ -1,0 +1,165 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  RutaSegura CDMX — agente que pondera rutas según rapidez, seguridad,
+  clima, costo y accesibilidad usando Strands Agents + Bedrock.
+
+Globals:
+  Function:
+    Runtime: nodejs22.x
+    Architectures: [arm64]
+    Timeout: 120
+    MemorySize: 512
+    PermissionsBoundary: arn:aws:iam::281614735122:policy/hackathon-boundary
+
+Parameters:
+  GoogleMapsApiKey:
+    Type: String
+    NoEcho: true
+    Description: API key para Google Maps Directions y Roads
+  OpenWeatherApiKey:
+    Type: String
+    NoEcho: true
+    Description: API key para OpenWeatherMap Current Weather
+
+Resources:
+
+  SessionsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: rutasegura-sessions
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: sessionId
+          AttributeType: S
+      KeySchema:
+        - AttributeName: sessionId
+          KeyType: HASH
+      TimeToLiveSpecification:
+        AttributeName: expiresAt
+        Enabled: true
+
+  AgentRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: rutasegura-execution-role
+      PermissionsBoundary: arn:aws:iam::281614735122:policy/hackathon-boundary
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: rutasegura-policy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - dynamodb:GetItem
+                  - dynamodb:PutItem
+                  - dynamodb:UpdateItem
+                Resource: !GetAtt SessionsTable.Arn
+              - Effect: Allow
+                Action:
+                  - bedrock:InvokeModel
+                  - bedrock:InvokeModelWithResponseStream
+                Resource: "*"
+
+  AgentFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: rutasegura-agent
+      Handler: index.handler
+      CodeUri: src/
+      Role: !GetAtt AgentRole.Arn
+      Environment:
+        Variables:
+          SESSIONS_TABLE: !Ref SessionsTable
+          GOOGLE_MAPS_API_KEY: !Ref GoogleMapsApiKey
+          OPENWEATHER_API_KEY: !Ref OpenWeatherApiKey
+
+  # API Gateway con streaming (mismo patrón que nube-agent)
+  Api:
+    Type: AWS::ApiGateway::RestApi
+    Properties:
+      Name: rutasegura-api
+
+  ChatResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref Api
+      ParentId: !GetAtt Api.RootResourceId
+      PathPart: chat
+
+  ChatMethod:
+    Type: AWS::ApiGateway::Method
+    # checkov:skip=CKV_AWS_59: demo público en cuenta de evento de corta duración
+    Properties:
+      RestApiId: !Ref Api
+      ResourceId: !Ref ChatResource
+      HttpMethod: POST
+      AuthorizationType: NONE
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        ResponseTransferMode: STREAM
+        TimeoutInMillis: 29000
+        Uri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2021-11-15/functions/${AgentFunction.Arn}/response-streaming-invocations
+
+  RootMethod:
+    Type: AWS::ApiGateway::Method
+    # checkov:skip=CKV_AWS_59: sirve la página HTML del frontend
+    Properties:
+      RestApiId: !Ref Api
+      ResourceId: !GetAtt Api.RootResourceId
+      HttpMethod: GET
+      AuthorizationType: NONE
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        ResponseTransferMode: STREAM
+        TimeoutInMillis: 29000
+        Uri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2021-11-15/functions/${AgentFunction.Arn}/response-streaming-invocations
+
+  Deployment:
+    Type: AWS::ApiGateway::Deployment
+    DependsOn: [ChatMethod, RootMethod]
+    Properties:
+      RestApiId: !Ref Api
+
+  AccessLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /aws/apigateway/rutasegura
+      RetentionInDays: 7
+
+  Stage:
+    Type: AWS::ApiGateway::Stage
+    Properties:
+      RestApiId: !Ref Api
+      DeploymentId: !Ref Deployment
+      StageName: prod
+      AccessLogSetting:
+        DestinationArn: !GetAtt AccessLogGroup.Arn
+        Format: '{"requestId":"$context.requestId","ip":"$context.identity.sourceIp","requestTime":"$context.requestTime","httpMethod":"$context.httpMethod","routeKey":"$context.resourcePath","status":"$context.status","responseLength":"$context.responseLength"}'
+
+  ApiInvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !GetAtt AgentFunction.Arn
+      Action: lambda:InvokeFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${Api}/*
+
+Outputs:
+  ApiUrl:
+    Description: URL base del API (dar al equipo de frontend)
+    Value: !Sub "https://${Api}.execute-api.${AWS::Region}.amazonaws.com/prod"
+  ChatEndpoint:
+    Description: Endpoint POST para el agente
+    Value: !Sub "https://${Api}.execute-api.${AWS::Region}.amazonaws.com/prod/chat"
