@@ -167,7 +167,7 @@ export const FRONTEND_HTML = `<!DOCTYPE html>
       get_accessibility:   "♿ Verificando accesibilidad",
     };
 
-    let map, directionsRenderer, mapsReady = false;
+    let map, directionsRenderer, directionsPolyline, markerOrigin, markerDest, mapsReady = false;
 
     function initMap() {
       map = new google.maps.Map(document.getElementById("map"), {
@@ -199,16 +199,35 @@ export const FRONTEND_HTML = `<!DOCTYPE html>
 
     function drawRoute(routeData) {
       if (!mapsReady) return;
+      if (routeData.polyline) {
+        // Dibujar directamente con la polyline del Routes API — sin round-trip extra
+        const path = google.maps.geometry.encoding.decodePath(routeData.polyline);
+        if (directionsPolyline) directionsPolyline.setMap(null);
+        directionsPolyline = new google.maps.Polyline({
+          path,
+          map,
+          strokeColor: "#6C63FF",
+          strokeWeight: 5,
+          strokeOpacity: 0.9,
+        });
+        const bounds = new google.maps.LatLngBounds();
+        path.forEach(p => bounds.extend(p));
+        map.fitBounds(bounds, { top: 60, right: 60, bottom: 60, left: 60 });
+
+        // Marcadores de inicio y fin
+        if (markerOrigin) markerOrigin.setMap(null);
+        if (markerDest)   markerDest.setMap(null);
+        markerOrigin = new google.maps.Marker({ position: path[0], map, title: routeData.origin,
+          icon: { path: google.maps.SymbolPath.CIRCLE, scale: 8, fillColor: "#6C63FF", fillOpacity: 1, strokeColor: "#fff", strokeWeight: 2 } });
+        markerDest   = new google.maps.Marker({ position: path[path.length - 1], map, title: routeData.destination,
+          icon: { path: google.maps.SymbolPath.CIRCLE, scale: 8, fillColor: "#ff6b6b", fillOpacity: 1, strokeColor: "#fff", strokeWeight: 2 } });
+        return;
+      }
+      // Fallback: usar DirectionsService con strings si no hay polyline
       const svc = new google.maps.DirectionsService();
       svc.route(
-        {
-          origin:      routeData.origin,
-          destination: routeData.destination,
-          travelMode:  google.maps.TravelMode.DRIVING,
-        },
-        (result, status) => {
-          if (status === "OK") directionsRenderer.setDirections(result);
-        }
+        { origin: routeData.origin, destination: routeData.destination, travelMode: google.maps.TravelMode.DRIVING },
+        (result, status) => { if (status === "OK") directionsRenderer.setDirections(result); }
       );
     }
 
@@ -225,7 +244,7 @@ export const FRONTEND_HTML = `<!DOCTYPE html>
         '<span class="tool-badge done">' + (TOOL_LABELS[name] ?? name) + ' ✓</span>';
     }
   </script>
-  <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyAQqa_a-T2DG0BOHkePnpGBWPlkNIp97mY&libraries=places&callback=initMap" async defer></script>
+  <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyAQqa_a-T2DG0BOHkePnpGBWPlkNIp97mY&libraries=places,geometry&callback=initMap" async defer></script>
   <script>
     const sessionId = "s-" + Math.random().toString(36).slice(2, 9);
     // Construir URL del chat respetando el stage de API Gateway (/prod/chat)
@@ -276,10 +295,9 @@ export const FRONTEND_HTML = `<!DOCTYPE html>
             try {
               const evt = JSON.parse(line);
               if (evt.type === "token") {
-                // Marcar herramienta anterior como completada cuando llega el primer token
                 if (lastTool) { addDoneBadge(lastTool); lastTool = null; setActiveTool(null); }
                 text += evt.text;
-                out.textContent = text.replace(/\\nROUTE_DATA:.*$/s, "").trim();
+                out.textContent = text;
               } else if (evt.type === "tool") {
                 if (lastTool) addDoneBadge(lastTool);
                 lastTool = evt.name;
