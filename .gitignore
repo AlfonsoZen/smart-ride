@@ -1,0 +1,7 @@
+.agents/
+.aws-sam/
+.claude/
+skills-lock.json
+agent/
+node_modules/
+*.env
