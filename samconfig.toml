@@ -1,7 +1,7 @@
 version = 0.1
 
 [default.global.parameters]
-stack_name = "smart-ride"
+stack_name = "rutasegura"
 resolve_s3 = true
 capabilities = "CAPABILITY_IAM CAPABILITY_NAMED_IAM CAPABILITY_AUTO_EXPAND"
 confirm_changeset = false
