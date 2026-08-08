@@ -10,7 +10,7 @@ Globals:
     Architectures: [arm64]
     Timeout: 120
     MemorySize: 512
-    PermissionsBoundary: arn:aws:iam::281614735122:policy/hackathon-boundary
+    PermissionsBoundary: arn:aws:iam::840358034237:policy/hackathon-boundary
 
 Parameters:
   GoogleMapsApiKey:
@@ -43,7 +43,7 @@ Resources:
     Type: AWS::IAM::Role
     Properties:
       RoleName: rutasegura-execution-role
-      PermissionsBoundary: arn:aws:iam::281614735122:policy/hackathon-boundary
+      PermissionsBoundary: arn:aws:iam::840358034237:policy/hackathon-boundary
       AssumeRolePolicyDocument:
         Version: "2012-10-17"
         Statement:
