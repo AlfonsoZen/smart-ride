@@ -228,6 +228,8 @@ export const FRONTEND_HTML = `<!DOCTYPE html>
   <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyAQqa_a-T2DG0BOHkePnpGBWPlkNIp97mY&libraries=places&callback=initMap" async defer></script>
   <script>
     const sessionId = "s-" + Math.random().toString(36).slice(2, 9);
+    // Construir URL del chat respetando el stage de API Gateway (/prod/chat)
+    const CHAT_URL = window.location.href.replace(/\\/$/, "") + "/chat";
     let lastTool = null;
 
     async function buscarRuta() {
@@ -256,7 +258,7 @@ export const FRONTEND_HTML = `<!DOCTYPE html>
       };
 
       try {
-        const res = await fetch("/chat", {
+        const res = await fetch(CHAT_URL, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(payload),
