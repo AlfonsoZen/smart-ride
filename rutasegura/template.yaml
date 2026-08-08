@@ -16,10 +16,12 @@ Parameters:
   GoogleMapsApiKey:
     Type: String
     NoEcho: true
+    Default: ""
     Description: API key para Google Maps Directions y Roads
   OpenWeatherApiKey:
     Type: String
     NoEcho: true
+    Default: ""
     Description: API key para OpenWeatherMap Current Weather
 
 Resources:
