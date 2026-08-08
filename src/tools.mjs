@@ -1,6 +1,102 @@
 import { tool } from "@strands-agents/sdk";
 import { z } from "zod";
 
+// Funciones directas para pre-fetch paralelo desde el handler
+export async function fetchRoutes(origin_lat, origin_lng, dest_lat, dest_lng) {
+  const key = process.env.GOOGLE_MAPS_API_KEY;
+  const res = await fetch("https://routes.googleapis.com/directions/v2:computeRoutes", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "X-Goog-Api-Key": key,
+      "X-Goog-FieldMask": [
+        "routes.duration", "routes.distanceMeters",
+        "routes.polyline", "routes.travelAdvisory",
+        "routes.legs.steps.navigationInstruction",
+      ].join(","),
+    },
+    body: JSON.stringify({
+      origin:      { location: { latLng: { latitude: origin_lat, longitude: origin_lng } } },
+      destination: { location: { latLng: { latitude: dest_lat,   longitude: dest_lng   } } },
+      travelMode: "DRIVE",
+      computeAlternativeRoutes: true,
+      routingPreference: "TRAFFIC_AWARE",
+      languageCode: "es", regionCode: "MX",
+    }),
+  });
+  const data = await res.json();
+  if (!data.routes?.length) throw new Error(`Routes API: ${JSON.stringify(data.error ?? data)}`);
+  return data.routes.map((r, i) => ({
+    index: i,
+    summary: `Ruta ${i + 1}`,
+    duration_min: Math.round(parseInt(r.duration ?? "0") / 60),
+    distance_km: (r.distanceMeters / 1000).toFixed(1),
+    polyline: r.polyline?.encodedPolyline ?? "",
+    main_roads: (r.legs?.[0]?.steps ?? [])
+      .map(s => s.navigationInstruction?.instructions ?? "")
+      .filter(s => s.length > 3).slice(0, 5),
+  }));
+}
+
+export async function fetchWeather(lat, lng) {
+  const key = process.env.OPENWEATHER_API_KEY;
+  const res = await fetch(
+    `https://api.openweathermap.org/data/2.5/weather?lat=${lat}&lon=${lng}&appid=${key}&lang=es&units=metric`
+  );
+  const d = await res.json();
+  const rain_mm = d.rain?.["1h"] ?? 0;
+  const flood_risk = rain_mm > 15 ? "muy_alto" : rain_mm > 10 ? "alto" : rain_mm > 3 ? "medio" : "bajo";
+  return {
+    condition: d.weather?.[0]?.description ?? "despejado",
+    temp_c: d.main?.temp,
+    rain_1h_mm: rain_mm,
+    flood_risk,
+    alert: flood_risk === "muy_alto" ? "⚠️ Lluvia intensa. Riesgo de encharcamientos." :
+           flood_risk === "alto"     ? "🌧 Lluvia moderada. Posibles encharcamientos." :
+           flood_risk === "medio"    ? "🌦 Lluvia ligera." : null,
+  };
+}
+
+export function evalSafety(route_summary) {
+  const text = route_summary.toLowerCase();
+  const coloniaMatch = Object.entries(COLONIA_OVERRIDES).filter(([k]) => text.includes(k));
+  const alcaldiaMatch = Object.entries(ALCALDIA_SCORES).filter(([k]) => text.includes(k));
+  let score, zones = [];
+  if (coloniaMatch.length) {
+    score = Math.round(coloniaMatch.reduce((s, [, v]) => s + v, 0) / coloniaMatch.length);
+    zones = coloniaMatch.map(([k]) => k);
+  } else if (alcaldiaMatch.length) {
+    score = Math.round(alcaldiaMatch.reduce((s, [, v]) => s + v, 0) / alcaldiaMatch.length);
+    zones = alcaldiaMatch.map(([k]) => k);
+  } else {
+    score = 5;
+  }
+  const hourCDMX = ((new Date().getUTCHours() - 6) + 24) % 24;
+  const isNight = hourCDMX >= 22 || hourCDMX < 5;
+  if (isNight && score > 2) score = Math.max(1, score - 2);
+  return {
+    safety_score: score,
+    zones_analyzed: zones,
+    is_night: isNight,
+    recommendation:
+      score <= 3 ? "Zona de alta incidencia. Usar Uber/taxi, evitar caminar." :
+      score <= 5 ? "Incidencia media. Mantenerse en vialidades principales." :
+      score <= 7 ? "Incidencia baja. Ruta relativamente segura." :
+                   "Muy baja incidencia. Ruta segura.",
+  };
+}
+
+export function calcCost(distance_km, duration_min) {
+  const taxi = Math.round(15.80 + distance_km * 14.20 + duration_min * 1.40);
+  const app  = Math.round(25   + distance_km * 9     + duration_min * 0.80);
+  return [
+    { mode: "Metro (solo)",    cost_mxn: 5,    notes: "Si hay estación cercana." },
+    { mode: "Metro + Metrobús",cost_mxn: 12,   notes: "1-2 transbordos típicos." },
+    { mode: "Taxi de sitio",   cost_mxn: taxi, notes: "Con taxímetro." },
+    { mode: "Uber / DiDi",     cost_mxn: app,  notes: "Sin surge pricing." },
+  ];
+}
+
 // ── 1. Rutas base — Google Maps Directions API (con tráfico en tiempo real) ──
 
 export const getRoutes = tool({
